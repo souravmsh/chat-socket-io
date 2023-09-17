@@ -1,7 +1,10 @@
+'use strict';
+
 const express = require('express');
 const { createServer } = require('http');
 const { join } = require('path');
 const { Server } = require('socket.io');
+require('dotenv').config();
 
 const app = express();
 const server = createServer(app);
@@ -49,6 +52,6 @@ io.on('connection', (socket) => {
 
 });
 
-server.listen(3000, () => {
-    console.log('Server is running at http://localhost:3000');
+server.listen(process.env.PORT, () => {
+    console.log(`Server is running at http://${process.env.HOST}:${process.env.PORT}`);
 });
