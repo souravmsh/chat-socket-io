@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iOS-Style Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            background-color: #007AFF;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-size: 18px;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 10px;
+        }
+
+        .message {
+            display: flex;
+            align-items: flex-end;
+            align-self: flex-end;
+            max-width: 70%;
+            background-color: #007AFF;
+            color: white;
+            border-radius: 15px;
+            padding: 10px;
+            margin: 5px;
+            position: relative;
+        }
+
+        .message .status-dot {
+            background-color: red;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            position: absolute;
+            top: 10px;
+            left: 30px;
+        }
+
+        .message .status-dot.online{
+            background-color: green;
+        }
+
+        .message .avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #fff;
+            margin-right: 10px;
+            line-height: 30px;
+            font-size: small;
+            font-weight: 100;
+            color: #007AFF;
+            text-align: center;
+            overflow: hidden;
+        }
+
+        .message .text {
+            flex: 1;
+            line-height:28px;
+        }
+
+        .message.other {
+            background-color: #E5E5EA;
+            color: black;
+            align-self: flex-start;
+        }
+
+        .message.other .avatar {
+            background-color: #007AFF;
+            color: white;
+        }
+
+        .message-input {
+            display: flex;
+            background-color: white;
+            border-top: 1px solid #ccc;
+            padding: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            border: none;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 15px;
+        }
+
+        button {
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 15px;
+        }
+
+        /* toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            min-width: 200px;
+            background-color: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .toast.success {
+            background-color: green;
+        }
+        .toast.error {
+            background-color: red;
+        }
+    </style>
+</head>
+
+<body>
+    <header>iOS-Style Chat</header>
+    <form class="chat-app-form">
+        <div class="chat-container"> 
+        </div>
+        <div class="message-input">
+            <input type="text" name="message" autocomplete="off" placeholder="Type your message...">
+            <button>Send</button>
+        </div>
+    </form>
+
+
+    <script src="//cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+
+        const form     = document.querySelector('.chat-app-form');
+        const chatBody = document.querySelector('.chat-container');
+        const input    = document.querySelector('.chat-app-form input[name=message]');
+
+        // set nickname
+        var nickname = null; // Initialize nickname as null
+        while (nickname === null || nickname === "") {
+            nickname = prompt("Please enter your nickname:");
+        }
+        socket.emit('set_user', nickname);
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();  
+            if (input.value) {
+                socket.emit('chatroom', input.value);
+                input.value = '';
+            }
+        });
+
+        socket.on('chatroom', (response) => { 
+
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = "avatar";
+            avatarDiv.textContent = response.sender.name;
+            
+            const statusDiv = document.createElement('div');
+            statusDiv.className = "status-dot";
+            statusDiv.classList.add(response.sender.id);
+            statusDiv.classList.add(response.sender.online ? 'online':'');
+            
+            const textDiv = document.createElement('div');
+            textDiv.className = "text";
+            textDiv.textContent = response.message;
+
+            const messageContainer = document.createElement('div');
+            messageContainer.className = "message";
+            
+            if (nickname != response.sender.name) {
+                messageContainer.classList.add("other");
+            }
+
+            messageContainer.appendChild(statusDiv);
+            messageContainer.appendChild(avatarDiv);
+            messageContainer.appendChild(textDiv);
+
+            chatBody.appendChild(messageContainer);
+            window.scrollTo(0, document.body.scrollHeight);
+        });
+
+        socket.on('user_left', (user) => {
+            var chats = document.querySelectorAll('.status-dot.'+user.id);
+            chats.forEach(elem => {
+                elem.classList.remove("online")
+            });
+            showToast('error', 'User ' + user.name + ' just left the chat!', 3000); 
+        });
+
+        socket.on('user_joined', (user) => {
+            if (user.name != nickname) {
+                showToast('success', 'A new user ' + user.name + ' joined!', 3000); 
+            }
+        });
+
+        socket.on('online_users', (users) => { 
+            const names = users.map(user => user.name).join(', ');
+            showToast('success', 'Online users: ' + names, 3000); 
+        });
+
+
+        // TOAST
+        function showToast(status, message, duration) {
+            const toastContainer = document.createElement('div');
+            toastContainer.className = 'toast';
+            toastContainer.classList.add(status);
+            toastContainer.textContent = message;
+
+            document.body.appendChild(toastContainer);
+
+            // Get all existing toast elements
+            var toasts = document.querySelectorAll(".toast");
+            var defaultBottomPosition = 20 + (toasts.length * 40);
+            toastContainer.style.bottom = defaultBottomPosition + "px";
+
+            setTimeout(() => {
+                toastContainer.style.opacity = 0;
+                setTimeout(() => {
+                    document.body.removeChild(toastContainer);
+                }, 300); // Transition duration
+            }, duration);
+        }
+
+    </script> 
+</body>
+
+</html>
