@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Local Chat App</title>
+        <style>
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    Helvetica, Arial, sans-serif;
+                background: #eaeaea;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+            }
+
+            .chat-window {
+                width: 400px;
+                height: 600px;
+                background: #ffffff;
+                border-radius: 20px;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            .title-bar {
+                background: #f5f5f7;
+                padding: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                border-top-left-radius: 20px;
+                border-top-right-radius: 20px;
+                box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+            }
+
+            .title-bar .window-controls {
+                display: flex;
+                gap: 8px;
+            }
+
+            .window-controls .control {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+            }
+
+            .control.close {
+                background: #ff5f57;
+            }
+
+            .control.minimize {
+                background: #ffbd2e;
+            }
+
+            .control.maximize {
+                background: #28c840;
+            }
+
+            .chat-messages {
+                flex: 1;
+                padding: 15px;
+                overflow-y: auto;
+            }
+
+            .message {
+                display: flex;
+                align-items: center;
+                margin: 5px 0;
+                max-width: 70%;
+                padding: 10px 15px;
+                border-radius: 20px;
+                line-height: 1.5;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+                animation: fadeIn 0.3s ease;
+            }
+
+            .message.self {
+                background: #007aff;
+                color: white;
+                align-self: flex-end;
+                border-bottom-right-radius: 0;
+            }
+
+            .message.other {
+                background: #f1f0f0;
+                color: #333;
+                align-self: flex-start;
+                border-bottom-left-radius: 0;
+            }
+
+            .input-bar {
+                display: flex;
+                padding: 10px;
+                border-top: 1px solid #e0e0e0;
+                background: #f5f5f7;
+            }
+
+            .input-bar select,
+            .input-bar input[type="text"] {
+                flex: 1;
+                padding: 10px;
+                font-size: 14px;
+                border-radius: 20px;
+                outline: none;
+                border: 1px solid #ccc;
+                background: white;
+            }
+
+            .input-bar button {
+                background: #007aff;
+                color: white;
+                border: none;
+                border-radius: 20px;
+                padding: 5px 15px;
+                margin-left: 10px;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+
+            .input-bar button:hover {
+                background: #005bb5;
+            }
+
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="chat-window">
+            <div class="title-bar">
+                <div class="window-controls">
+                    <span class="control close"></span>
+                    <span class="control minimize"></span>
+                    <span class="control maximize"></span>
+                </div>
+                <div>Local Chat App</div>
+            </div>
+            <div class="chat-messages" id="chatbox"></div>
+            <div class="input-bar">
+                <select id="recipient">
+                    <option value="All">All</option>
+                </select>
+                <input
+                    type="text"
+                    id="message"
+                    placeholder="Type your message..."
+                />
+                <button id="send">Send</button>
+            </div>
+        </div>
+
+        <script>
+            const chatbox = document.getElementById("chatbox");
+            const messageInput = document.getElementById("message");
+            const sendButton = document.getElementById("send");
+            const recipientSelect = document.getElementById("recipient");
+
+            let nickname = prompt("Enter your nickname:");
+            let ws;
+
+            function connectWebSocket() {
+                ws = new WebSocket("ws://" + window.location.host + "/ws");
+
+                ws.onopen = function () {
+                    ws.send(
+                        JSON.stringify({ type: "setname", nickname: nickname }),
+                    );
+                };
+
+                ws.onmessage = function (event) {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === "userlist") {
+                        recipientSelect.innerHTML =
+                            '<option value="All">All</option>';
+                        data.nicknames.forEach((name) => {
+                            if (name !== nickname) {
+                                const userOption =
+                                    document.createElement("option");
+                                userOption.value = name;
+                                userOption.textContent = name;
+                                recipientSelect.appendChild(userOption);
+                            }
+                        });
+                    } else {
+                        const messageDiv = document.createElement("div");
+                        messageDiv.classList.add("message");
+                        messageDiv.classList.add(
+                            data.from === nickname ? "self" : "other",
+                        );
+                        messageDiv.textContent = `${data.from}: ${data.content}`;
+                        chatbox.appendChild(messageDiv);
+                        chatbox.scrollTop = chatbox.scrollHeight;
+                    }
+                };
+            }
+            connectWebSocket();
+
+            sendButton.addEventListener("click", () => {
+                const message = messageInput.value;
+                const to = recipientSelect.value;
+                ws.send(
+                    JSON.stringify({
+                        type: "message",
+                        from: nickname,
+                        to: to,
+                        content: message,
+                        isPrivate: to !== "All",
+                    }),
+                );
+                messageInput.value = "";
+            });
+        </script>
+    </body>
+</html>
